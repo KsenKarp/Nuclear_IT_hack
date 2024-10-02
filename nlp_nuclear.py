@@ -6,6 +6,7 @@ import langdetect
 import re
 import matplotlib.pyplot as plt
 import numpy as np
+from collections import defaultdict
 from wordcloud import WordCloud
 
 # Подгружаем файлик с ответами и русскоязычную модель и будем чистить его
@@ -103,35 +104,54 @@ def lemmatize_phrase(phrase):
     return " ".join(lemmatized_words)
 
 # Формируем словарик с группами синонимов
-dictionary = {}
-threshold = 0.5
+dictionary = defaultdict(list)
+threshold = 0.6
+
+# Так как в подобных опросах достаточно велика вероятность
+# дубликатов, то для векторизации слов заведём словарь, чтобы 
+# не векторизовать дубликаты
+vectors = {}
+
+# Получение векторизированного представления слова
+def get_vector(word):
+  if word not in vectors:
+    vectors[word] = nlp(lemmatize_phrase(word)).vector
+  return vectors[word]
+
+# Считаем косинус-меру
+def get_similarity(word1, word2):
+    vector1 = get_vector(word1)
+    vector2 = get_vector(word2)
+    return np.dot(vector1, vector2) / (np.linalg.norm(vector1) * np.linalg.norm(vector2))
+
+
+# Для обработки всех слов заводим массив с ними и будем удалять
+# уже обработанные
 all_words = [word.lower() for word in df['translated_ans_main']]
 
-while all_words:
-  # Чтобы не работать по десять раз с одним и тем же словом будем убирать уже обработанные
-  w = all_words.pop(0) 
-  w_lemmatized = lemmatize_phrase(w)
-  v1 = nlp(w_lemmatized).vector
+for word in all_words:
+    w_lemmatized = lemmatize_phrase(word)
+    v1 = get_vector(word)
 
-  # Проверить, было ли уже такое слово -- если нет, то добавляем его как ключ
-  if w not in dictionary and w not in [item for sublist in dictionary.values() for item in sublist]:
-    dictionary[w] = [w]
-  # Если да, то возможно это дубликат -- он нам нужен
-  else:
-    # Ищем ключ, под которым оно лежит в словаре
-    key = next((key for key, values in dictionary.items() if w in values), None)
-    dictionary[key].append(w)
+    # Проверяем: если слово добавлено в словарь с группами синонимов,
+    # то это дубликат ранее добавленных слов -- нам он нужен, кладём 
+    # по соответсвующему ключу
+    if word not in dictionary and word not in [value for dict_val in 
+                    dictionary.values() for value in dict_val]:
+        dictionary[word] = [word]
+    else:
+        # Если слова ещё не было, то создаём новый ключ и кладём его
+        # по этому ключу
+        key = next((key for key, values in dictionary.items() if word in values), None)
+        dictionary[key].append(word)
 
-  # Ищем все похожие по смыслу слова
-  similar_words = [w2 for w2 in all_words if np.dot(v1,
-    nlp(lemmatize_phrase(w2)).vector) / (np.linalg.norm(v1) *
-    np.linalg.norm(nlp(lemmatize_phrase(w2)).vector)) > threshold]
-  for w2 in similar_words:
-    key = next((key for key, values in dictionary.items() if w in values), None)
-    dictionary[key].append(w2)
-    all_words.remove(w2)
-
-print(dictionary)
+    # Ищем для слова word все синонимичные слова и добавляем по тому же
+    # ключу. После добавления удаляем из списка со всеми словами
+    similar_words = [w2 for w2 in all_words if get_similarity(word, w2) > threshold]
+    for w2 in similar_words:
+        key = next((key for key, values in dictionary.items() if word in values), None)
+        dictionary[key].append(w2)
+        all_words.remove(w2)
 
 # На всякий случай выгружаем полученный словарик в формате json,
 # для возможности проведения с ним дальнейших манипуляций
