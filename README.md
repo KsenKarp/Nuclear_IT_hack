@@ -41,7 +41,8 @@
 	+ `deep_translator`;
 	+ `re`;
 	+ `spacy` и загрузите русскую языковую модель: `ru_core_news_lg`;
-	+ `transliterate`.
+	+ `transliterate`;
+ 	+ `collections`.
 
 **Входной файл**
 
