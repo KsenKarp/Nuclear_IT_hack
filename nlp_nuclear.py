@@ -10,7 +10,7 @@ from wordcloud import WordCloud
 
 # Подгружаем файлик с ответами и русскоязычную модель и будем чистить его
 nlp = spacy.load("ru_core_news_lg")
-df = pd.read_csv('/content/answers2.csv', sep=';', header=None, names=['answers'])
+df = pd.read_csv('responses.csv', sep=';', header=None, names=['answers'])
 
 
 # Cначала переводим все ответы на русский язык, для чего используется
